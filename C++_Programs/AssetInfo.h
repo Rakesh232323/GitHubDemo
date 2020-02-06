@@ -5,6 +5,7 @@ using namespace std;
 #include <string>
 #include <windows.h>
 #include<ctime>
+#include<vector>
 
 
 HANDLE ghMutex;
@@ -16,11 +17,15 @@ class AssetInfo
 public:
 	string InputData;
 	char *path;
+	string delimiter;
 	ifstream ifassetInfo;
+	string deviceIdValue;
+	string devicemsg;
 	static string LastMessage;
 	AssetInfo();
 	void GetAssetInformation();	
 	void ReadAssetInfromation();
 	void WriteAssetInformation(string msg);
 	void ParseMessage();
+	bool GetFileContent(vector<std::string> & vecOfStrs);
 };

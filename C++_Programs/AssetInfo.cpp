@@ -7,10 +7,13 @@ string AssetInfo::LastMessage = "";
 
 AssetInfo::AssetInfo()
 {
+
+	delimiter = "$";
+	devicemsg = "";
 	path = "D:\\AssetMange.txt";
 //	InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1$2";
-	//InputData = "DeviceId:101$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1";
-	InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1";
+	InputData = "DeviceId:102$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.5$x:2$y:3$z:1$a:1";
+	//InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1"; - i used this initally
 
 }
 
@@ -23,7 +26,6 @@ void AssetInfo::ReadAssetInfromation()
 	int line = 0;
 	int counter = 0;
 	ifassetInfo.open(path, ios::in);
-
 	while (!ifassetInfo.eof())
 	{
 		//getline(ifassetInfo, line);
@@ -39,86 +41,45 @@ void AssetInfo::ReadAssetInfromation()
 4. Release the lock
 
 */
+//It Parse and filter the device id and device id value in a member variable
 void AssetInfo::ParseMessage()
 {
-	string delimiter = "$";
-	string FinalMsg = "";
-	size_t pos = 0;
-	size_t firstpos = 0;
-	std::string token;
 
-	// // Think to remove if not feasible
-	//if (LastMessage == InputData)
-	//	return;
-	while ((pos = InputData.find(delimiter)) != std::string::npos) 
+	int pos = 0;
+	int firstpos = 0;
+	string InputMsg = InputData;
+	while ((pos = InputMsg.find(delimiter)) != std::string::npos)
 	{
 		if (firstpos == 0)
 		{
-			string token;
 			firstpos = pos;
-			token = InputData.substr(0, pos);
+			string token;
+			token = InputMsg.substr(0, pos);
 			//again parse to extract substring (example MsId and it's value)
 			int pos = token.find(":");
-			string msgid = token.substr(0, pos); // verifying the msgid string
-			string msgidvalue = token.substr(pos + 1);
-			if (msgidvalue != "501")
-			break;
-			InputData.erase(0, firstpos + delimiter.length());
+			string deviceid = token.substr(0, pos); // verifying the msgid string  // I got the device id to compare
+			deviceIdValue = token.substr(pos + 1);
+			InputMsg.erase(0, firstpos + delimiter.length());
 			//cout << "\t" << InputData;
 			continue;
-		}		
-	//token = InputData.substr(0,pos+1);		
-	//std::cout << token << std::endl;   // This is to print in the console	
-	FinalMsg += InputData.substr(0, pos + 1);
-	InputData.erase(0, pos + delimiter.length());
-	}
-
-	// Create a Separeate function to writeinfile
-	cout << "\n" << "After Parsing writing the below message directly to the file\n";
-	cout << FinalMsg;
-
-	 //Appending the TimeStamp
-
-	int count = 0;
-	string temp = "";
-	time_t currenttime = time(0);
-	//Converting currenttime to string form
-	char dt[50] = {};
-	string CurrentStamp = "TimeStamp:";
-	ctime_s(dt, 50, &currenttime);
-	CurrentStamp += (string)dt;
-	//dt is coming with new line so removing the new line from the string
-	int posi = CurrentStamp.find("\n");
-	CurrentStamp.erase(posi, posi + 1);	
-		
-	while ((pos = FinalMsg.find(delimiter)) != std::string::npos)
-	{	
-		//as message format has DeviceType after the second delimeter 
-		if (count <= 1)
-		{
-			temp += FinalMsg.substr(0, pos + 1);
-			FinalMsg.erase(0, pos + delimiter.length());
-			count++;
-			continue;
 		}
-		//adding the delimeter to the string
-		temp += CurrentStamp + delimiter + FinalMsg;
-		
-			break;		
+
+		else
+		{
+			string token;
+			InputMsg.erase(0, pos + delimiter.length());
+			devicemsg = InputMsg;  // I got the message to compare
+			break;
+		}
+
 	}
 
-	//Critical Section
-	WriteAssetInformation(temp);
+
 }
 
 void AssetInfo::WriteAssetInformation(string FinalMsg)
 {
 	DWORD  dwWaitResult;
-	//Create Mutex
-	ghMutex = CreateMutex(
-		NULL,              // default security attributes
-		FALSE,             // initially not owned
-		(LPCWSTR)mutexname);             // named mutex
 
 	if (ghMutex == NULL)
 	{
@@ -144,23 +105,146 @@ void AssetInfo::WriteAssetInformation(string FinalMsg)
 	int size = FinalMsg.size();	
 	assetmanageinfoFile << FinalMsg + "\n";
 	assetmanageinfoFile.close();
+	//remove(path);
+	//rename("D:\\temp.txt", path);	
 
+	LastMessage = FinalMsg;
+
+	//Releae the handle at the end of the operation
 	if (!ReleaseMutex(ghMutex))
 	{
 		// Handle error.
 	}
-
-	LastMessage = FinalMsg;
 	
 }
+
+
+
+bool AssetInfo::GetFileContent(vector<std::string> & vecOfStrs)
+{
+
+	string pathe = "D:\\AssetMange.txt";
+	// Open the File
+	std::ifstream in(pathe.c_str());
+	// Check if object is valid
+	if (!in)
+	{
+		std::cerr << "Cannot open the File : " << pathe << std::endl;
+		return false;
+	}
+
+	std::string str;
+	// Read the next line from File untill it reaches the end.
+	while (std::getline(in, str))
+	{
+		// Line contains string of length > 0 then save it in vector
+		if (str.size() > 0)
+			vecOfStrs.push_back(str);
+	}
+	//Close The File
+	in.close();
+	return true;
+}
+
+
 
 void main()
 {
-	AssetInfo asset,asset2;
-	
-	asset.ParseMessage();
-	asset.ParseMessage();
+	AssetInfo asset, asset2;
+	bool update = false;
+	ofstream of;
 
-	//getchar();
-	//assetmanagement.ReadAssetInfromation();
+	asset.ParseMessage();
+	
+	//Declare a vector to store the content of the file
+	vector<std::string> vecOfStr;
+	// Get the contents of file in a vector
+	if(asset.GetFileContent(vecOfStr))
+	{
+		for (string & line : vecOfStr)
+		{
+			int pos = 0;
+			int count = 0;
+			int firstpos = 0;
+			string token;
+			string deviceIdValue = "";
+			while ((pos = line.find(asset.delimiter)) != std::string::npos)
+			{
+				if (count < 2)  
+				{
+					if (firstpos == 0)  // Removing the TimeStamp attribute from the actual message structure
+					{
+						line.erase(0, pos + asset.delimiter.length());
+						firstpos = pos;
+						count++;
+						continue;
+
+					}
+					else  // Getting the DeviceID Value and Then Removing the DeviceID Attribute from the actual message structure
+					{
+						string token;
+						token = line.substr(0, pos);
+						//again parse to extract substring (example MsId and it's value)
+						int pose = token.find(":");
+						string deviceid = token.substr(0, pose); // verifying the msgid string  // I got the device id to compare
+					    deviceIdValue = token.substr(pose + 1);
+						line.erase(0, pos + asset.delimiter.length());
+						count++;
+						continue;
+					}
+				}
+				else
+				{
+					string token;
+					line.erase(0, pos + asset.delimiter.length());  // Removing the Device Type attribute from the message structure and storing the actual device related information(Ex - Msg:H/w:1.2$...) to a local variable
+					string devicemsg = line;  // I got the message to compare
+					//Comparing with the actual message , messag has difference
+					if (deviceIdValue == asset.deviceIdValue  && devicemsg != asset.devicemsg)
+					{
+						line = asset.InputData;  // appending the recieved messgae
+						time_t currenttime = time(0);
+						//Converting currenttime to string form
+						char dt[50] = {};
+						string CurrentStamp = "TimeStamp:";
+						ctime_s(dt, 50, &currenttime);
+						CurrentStamp += (string)dt;
+						//dt is coming with new line so removing the new line from the string
+						int posi = CurrentStamp.find("\n");
+						CurrentStamp.erase(posi, posi + 1);
+						line.insert(0, CurrentStamp + asset.delimiter);
+						update = true;
+						break;
+
+						// set some thing true to know					
+						
+					}
+					break;
+
+				}
+				   // here it was continue
+				
+			}
+			if (update)
+				break;
+			
+		}
+
+		if (update)   // if true then only truncate the file
+		{
+			of.open(asset.path, ios::out | ios::trunc);
+			for (std::string & line : vecOfStr)
+			{
+				of << line +"\n";
+			}
+			of.close();
+		}
+		else
+		{
+			return;
+			//Release the handle
+			//no need to open the file to write also
+		}
+
+	}
 }
+
