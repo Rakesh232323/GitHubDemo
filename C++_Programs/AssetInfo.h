@@ -16,6 +16,7 @@ class AssetInfo
 
 public:
 	string InputData;
+	ofstream assetinfoFile;
 	char *path;
 	string delimiter;
 	ifstream ifassetInfo;
@@ -25,7 +26,8 @@ public:
 	AssetInfo();
 	void GetAssetInformation();	
 	void ReadAssetInfromation();
-	void WriteAssetInformation(string msg);
+	void WriteAssetInformation(string msg,bool update);
 	void ParseMessage();
 	bool GetFileContent(vector<std::string> & vecOfStrs);
+	string  GetCurrentTimeStamp();
 };

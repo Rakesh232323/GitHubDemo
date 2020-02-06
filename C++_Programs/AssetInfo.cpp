@@ -1,8 +1,6 @@
 #include "AssetInfo.h"
 #include "windows.h"
 
-
-
 string AssetInfo::LastMessage = "";
 
 AssetInfo::AssetInfo()
@@ -10,11 +8,8 @@ AssetInfo::AssetInfo()
 
 	delimiter = "$";
 	devicemsg = "";
-	path = "D:\\AssetMange.txt";
-//	InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1$2";
-	InputData = "DeviceId:104$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.5$x:2$y:3$z:1$a:1";
-	//InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1"; - i used this initally
-
+	path = "D:\\AssetInfo.txt";
+	InputData = "DeviceId:103$DeviceType:SNMP$Msg:H/wVersion:2.8$S/wVersion:2.8$x:2$y:4$z:5$a:6$b:3.10";
 }
 
 void AssetInfo::GetAssetInformation()
@@ -77,45 +72,26 @@ void AssetInfo::ParseMessage()
 
 }
 
-void AssetInfo::WriteAssetInformation(string FinalMsg)
-{
-	DWORD  dwWaitResult;
-	//Create Mutex
-	ghMutex = CreateMutex(
-		NULL,              // default security attributes
-		FALSE,             // initially not owned
-		(LPCWSTR)mutexname);             // named mutex
+void AssetInfo::WriteAssetInformation(string FinalMsg,bool update)
+{	
+	string CurrentTimeStamp;
 
-	if (ghMutex == NULL)
+	if (update)
+	{		
+		assetinfoFile << FinalMsg + "\n";
+
+	}
+	else  // It means file is empty and it is going to be the first entry in the file
 	{
-		printf("CreateMutex error: %d\n", GetLastError());
-		return;
+		assetinfoFile.open(path, ios::out | ios::ate|ios::app);
+		CurrentTimeStamp = GetCurrentTimeStamp();
+		FinalMsg.insert(0, CurrentTimeStamp + delimiter);
+		assetinfoFile << FinalMsg + "\n";
+
 	}
 
-	dwWaitResult = WaitForSingleObject(
-		ghMutex,    // handle to mutex
-		INFINITE);  // no time-out interval
+	assetinfoFile.close();
 
-
-	if (dwWaitResult != 0) // Not handling the errors.
-		return;
-	//Open the file for both readin and writing purpose and apply lock mechanism 
-
-	//Call Read from file to avoid duplicacy 
-	ofstream assetmanageinfoFile;
-
-	assetmanageinfoFile.open(path, ios::out | ios::app | ios::ate);
-
-	//size of the Final message
-	int size = FinalMsg.size();	
-	assetmanageinfoFile << FinalMsg + "\n";
-	assetmanageinfoFile.close();
-	//remove(path);
-	//rename("D:\\temp.txt", path);	
-
-	LastMessage = FinalMsg;
-
-	//Releae the handle at the end of the operation
 	if (!ReleaseMutex(ghMutex))
 	{
 		// Handle error.
@@ -127,6 +103,7 @@ void AssetInfo::WriteAssetInformation(string FinalMsg)
 
 bool AssetInfo::GetFileContent(vector<std::string> & vecOfStrs)
 {
+	int emptyfile = 0;
 	DWORD  dwWaitResult;
 	//Create Mutex
 	ghMutex = CreateMutex(
@@ -151,34 +128,70 @@ bool AssetInfo::GetFileContent(vector<std::string> & vecOfStrs)
 
 	string pathe = "D:\\AssetMange.txt";
 	// Open the File
-	std::ifstream in(pathe.c_str());
+	//ifstream in(pathe.c_str());
+	fstream in;
+	int empty;
+	in.open(path, ios::in|ios::out);
+
 	// Check if object is valid
-	if (!in)
+	if (!in)  // File does not exist
 	{
-		std::cerr << "Cannot open the File : " << pathe << std::endl;
+		WriteAssetInformation(InputData, false);
+		in.close();
 		return false;
 	}
 
-	std::string str;
+	string str;
+	
 	// Read the next line from File untill it reaches the end.
-	while (std::getline(in, str))
+	int count = 0;
+	while (getline(in, str))
 	{
+		count++;
 		// Line contains string of length > 0 then save it in vector
 		if (str.size() > 0)
+		{
 			vecOfStrs.push_back(str);
+		}
 	}
+	if (count == 0)  // This means file is emtpy
+	{
+		WriteAssetInformation(InputData, false);
+		return false;
+
+	}
+
 	//Close The File
 	in.close();
 	return true;
 }
 
 
+string AssetInfo:: GetCurrentTimeStamp()
+{
+	int pos;
+	time_t currenttime = time(0);
+	//Converting currenttime to string form
+	char dt[50] = {};
+	string CurrentStamp = "TimeStamp:";
+	ctime_s(dt, 50, &currenttime);
+	CurrentStamp += (string)dt;
+	//dt is coming with new line so removing the new line from the string
+	pos = CurrentStamp.find("\n");
+	CurrentStamp.erase(pos, pos + 1);
+	return CurrentStamp;
+}
+
 
 void main()
 {
 	AssetInfo asset, asset2;
 	bool update = false;
+	int flag = 0;
 	ofstream of;
+	string CurrentStamp = "";
+	string temp = "";  // for storing the one line actual message from the vector
+	string newentry = asset.InputData;
 
 	asset.ParseMessage();
 	
@@ -189,8 +202,7 @@ void main()
 	{
 		for (string & line : vecOfStr)
 		{
-			int pos = 0;
-			string temp = "";  // for storing the one line actual message from the vector
+			int pos = 0;			
 			int count = 0;
 			int firstpos = 0;
 			string token;
@@ -229,66 +241,59 @@ void main()
 					//Comparing with the actual message , messag has difference
 					if (deviceIdValue == asset.deviceIdValue  && devicemsg != asset.devicemsg)
 					{
-
-						//Rakesh put the timming in  get current fucntion 
-						line = asset.InputData;  // appending the recieved messgae
-						time_t currenttime = time(0);
-						//Converting currenttime to string form
-						char dt[50] = {};
-						string CurrentStamp = "TimeStamp:";
-						ctime_s(dt, 50, &currenttime);
-						CurrentStamp += (string)dt;
-						//dt is coming with new line so removing the new line from the string
-						int posi = CurrentStamp.find("\n");
-						CurrentStamp.erase(posi, posi + 1);
+						CurrentStamp = asset.GetCurrentTimeStamp();
+						line = asset.InputData;  // appending the recieved messgae						
 						line.insert(0, CurrentStamp + asset.delimiter);
-						update = true;
-						break;
-
-						// set some thing true to know					
+						update = true;   // To identify we need to update the file contents
+						flag = 0;
+						break;			
 						
 					}
-					else
+					else if (deviceIdValue == asset.deviceIdValue && devicemsg == asset.devicemsg)
 					{
-						line = temp;
-									
+						flag = 2;  // It means entry is matching in the file no need to write or read the file 
+						break;
+					}
+					else  // IT means the strng msg is same that means no update it may be a new entry so wee need to fill the vector with input string coming 
+					{
+						flag = 1;
+						line = temp;  // as the strings are removed so we may loose the entire text so copying it from temp which intially only stores the original text
 
 					}
 					break;
 
 				}
-				   // here it was continue
 				
 			}
 			if (update)
 				break;
 			
 		}
+		
+			if (flag == 1)  // for a new entry after some entry
+			{					
+				asset.WriteAssetInformation(newentry,false);
+			}
+			if(flag == 0)  // updae the existing record
+			{
+				asset.assetinfoFile.open(asset.path, ios::out | ios::trunc);
+				for (std::string & line : vecOfStr)
+				{
+					asset.WriteAssetInformation(line, true);
+				}
+			}
+			if (flag == 2)   // No updation required
+			{
+				 //Check twice do you have any file opened if yes please close the file
+				if (!ReleaseMutex(ghMutex))
+				{
+					// Handle error.
+				}
 
-		if (update)   // if true then only truncate the file
-		{
-			of.open(asset.path, ios::out | ios::trunc);
-			for (std::string & line : vecOfStr)
-			{
-				of << line +"\n";
 			}
-			of.close();
-			//Releae the handle at the end of the operation
-			if (!ReleaseMutex(ghMutex))
-			{
-				// Handle error.
-			}
-		}
-		else
-		{
-			if (!ReleaseMutex(ghMutex))
-			{
-				// Handle error.
-			}
-			return;
-			//Release the handle
-			//no need to open the file to write also
-		}
+		
+
+		return;
 
 	}
 
