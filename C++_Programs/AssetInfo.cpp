@@ -12,7 +12,7 @@ AssetInfo::AssetInfo()
 	devicemsg = "";
 	path = "D:\\AssetMange.txt";
 //	InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1$2";
-	InputData = "DeviceId:102$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.5$x:2$y:3$z:1$a:1";
+	InputData = "DeviceId:104$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.5$x:2$y:3$z:1$a:1";
 	//InputData = "MsgId:501$DeviceId:101$DeviceType:SNMP$Msg:H/wVersion:1.1$S/wVersion:2.2$x:2$y:3$z:1$a:1"; - i used this initally
 
 }
@@ -80,6 +80,11 @@ void AssetInfo::ParseMessage()
 void AssetInfo::WriteAssetInformation(string FinalMsg)
 {
 	DWORD  dwWaitResult;
+	//Create Mutex
+	ghMutex = CreateMutex(
+		NULL,              // default security attributes
+		FALSE,             // initially not owned
+		(LPCWSTR)mutexname);             // named mutex
 
 	if (ghMutex == NULL)
 	{
@@ -122,6 +127,27 @@ void AssetInfo::WriteAssetInformation(string FinalMsg)
 
 bool AssetInfo::GetFileContent(vector<std::string> & vecOfStrs)
 {
+	DWORD  dwWaitResult;
+	//Create Mutex
+	ghMutex = CreateMutex(
+		NULL,              // default security attributes
+		FALSE,             // initially not owned
+		(LPCWSTR)mutexname);             // named mutex
+
+	if (ghMutex == NULL)
+	{
+		printf("CreateMutex error: %d\n", GetLastError());
+		return false;  //Rakesh Please check this
+	}
+
+	dwWaitResult = WaitForSingleObject(
+		ghMutex,    // handle to mutex
+		INFINITE);  // no time-out interval
+
+
+	if (dwWaitResult != 0) // Not handling the errors.
+		return false;   // Rakesh Please check this 
+
 
 	string pathe = "D:\\AssetMange.txt";
 	// Open the File
@@ -164,10 +190,12 @@ void main()
 		for (string & line : vecOfStr)
 		{
 			int pos = 0;
+			string temp = "";  // for storing the one line actual message from the vector
 			int count = 0;
 			int firstpos = 0;
 			string token;
 			string deviceIdValue = "";
+			temp = line;
 			while ((pos = line.find(asset.delimiter)) != std::string::npos)
 			{
 				if (count < 2)  
@@ -201,6 +229,8 @@ void main()
 					//Comparing with the actual message , messag has difference
 					if (deviceIdValue == asset.deviceIdValue  && devicemsg != asset.devicemsg)
 					{
+
+						//Rakesh put the timming in  get current fucntion 
 						line = asset.InputData;  // appending the recieved messgae
 						time_t currenttime = time(0);
 						//Converting currenttime to string form
@@ -217,6 +247,12 @@ void main()
 
 						// set some thing true to know					
 						
+					}
+					else
+					{
+						line = temp;
+									
+
 					}
 					break;
 
@@ -237,14 +273,24 @@ void main()
 				of << line +"\n";
 			}
 			of.close();
+			//Releae the handle at the end of the operation
+			if (!ReleaseMutex(ghMutex))
+			{
+				// Handle error.
+			}
 		}
 		else
 		{
+			if (!ReleaseMutex(ghMutex))
+			{
+				// Handle error.
+			}
 			return;
 			//Release the handle
 			//no need to open the file to write also
 		}
 
 	}
+
 }
 
