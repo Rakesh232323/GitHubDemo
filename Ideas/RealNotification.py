@@ -9,7 +9,7 @@ dist_name = ""
 
 #dist = input("Enter district ID")
 #date = input("Enter the Date")
-date = '13-06-2021'
+date = '14-06-2021'
 state_id = 15  
 URL = 'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/findByDistrict?district_id={}&date={}'.format(dist,date)
 URL2 = 'https://cdn-api.co-vin.in/api/v2/admin/location/districts/{}'.format(state_id)
